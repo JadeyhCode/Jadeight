@@ -1039,7 +1039,7 @@ void copyFirstStack(long long parameter, DataSave *ptr) {
         }
     }
 }
-void pushCount(long long parameter, DataSave *ptr){ptr->intStack.push_back(static_cast<int>(ptr->count-15));}
+void pushCount(long long parameter, DataSave *ptr){ptr->intStack.push_back(static_cast<int>(ptr->count+1));}
 void (*interpretedPTR[27])(long long,DataSave*){add,reduce,excluding,modulo,boolOperation,Equal,Greater,less,jump,intPush,doublePush,boolPush,JadeightEnd,paramStore,heapAdd,heapRead,writeHeap,freeHeap,stackSwap,stackSize,cout,readCin,swapType,popStack,copyFirstStack,pushCount};
 struct executoring {
     //数据存储
@@ -1067,7 +1067,7 @@ struct executoring {
             ptr->parameter=BYSave.byteCode[ptr->count+1];
             interpreted(ptr->commandCode,ptr->parameter);
             ptr->count+=2;if (!ptr->end&&ptr->count+1<BYSave.size) {goto start;}
-            if (!ptr->end&&ptr->count+1==BYSave.size) {
+            if (!ptr->end&&ptr->count+2==BYSave.size) {
                 ptr->commandCode=BYSave.byteCode[ptr->count];
                 ptr->parameter=BYSave.byteCode[ptr->count+1];
                 interpreted(ptr->commandCode,ptr->parameter);
@@ -1110,13 +1110,13 @@ struct executoring {
             while (!ptr->end&&ptr->count+1<BYSave.size) {
             endPtr=nextEndPtr;
             *endPtr=(*endPtr*128)+((BYSave.byteCode[ptr->count]<<1)>>1);
-            nextEndPtr=(BYSave.byteCode[1]&0b10000000?commandCodePTR:parameterPTR);
-            if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
+            nextEndPtr=(BYSave.byteCode[ptr->count+1]&0b10000000?commandCodePTR:parameterPTR);
+            if(endPtr!=commandCodePTR&&endPtr!=nextEndPtr){
                 interpreted(ptr->commandCode,ptr->parameter);
                 ptr->commandCode=0;ptr->parameter=0;
             }
             ptr->count++;}
-            if (!ptr->end&&ptr->count<BYSave.size*2&&ptr->count+1==BYSave.size) {
+            if (!ptr->end&&ptr->count+1==BYSave.size) {
                 endPtr=nextEndPtr;
                 *endPtr=(*endPtr*128)+((BYSave.byteCode[ptr->count]<<1)>>1);
                 interpreted(ptr->commandCode,ptr->parameter);
@@ -1137,15 +1137,15 @@ struct executoring {
         *endPtr=BYSave.byteCode[0]&0x70;
         nextEndPtr=(BYSave.byteCode[0]&0x08?commandCodePTR:parameterPTR);
         ptr->count=1;
-        starat:
+        start:
         endPtr=nextEndPtr;
-        *endPtr=(*endPtr*8)+BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)&1))<<2)+3));
+        *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)&1))<<2)+3)));
         nextEndPtr=(BYSave.byteCode[(ptr->count+1)/2]&(1<<(((!((ptr->count+1)&1))<<2)+3))?commandCodePTR:parameterPTR);
         if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
             interpreted(ptr->commandCode,ptr->parameter);
             ptr->commandCode=0;ptr->parameter=0;
         }
-        ptr->count++;if (!ptr->end) {goto starat;}
+        ptr->count++;if (!ptr->end) {goto start;}
     }
     //全名称：ReasonablySafe4BitVariableLengthRead
     //注意，相对安全函数谨慎传参
@@ -1161,7 +1161,7 @@ struct executoring {
             ptr->count=1;
             while (!ptr->end&&ptr->count+1<BYSave.size*2) {
                 endPtr=nextEndPtr;
-                *endPtr=(*endPtr*8)+BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)%2))<<2)+3));
+                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)%2))<<2)+3)));
                 nextEndPtr=(BYSave.byteCode[(ptr->count+1)/2]&(1<<(((!((ptr->count+1)%2))<<2)+3))?commandCodePTR:parameterPTR);
                 if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
                     interpreted(ptr->commandCode,ptr->parameter);
@@ -1170,9 +1170,9 @@ struct executoring {
                 }
                 ptr->count++;
             }
-            if (!ptr->end&&ptr->count<BYSave.size*2&&ptr->count+1==BYSave.size*2) {
+            if (!ptr->end&&ptr->count+1==BYSave.size*2) {
                 endPtr=nextEndPtr;
-                *endPtr=(*endPtr*8)+BYSave.byteCode[ptr->count/2]&0x70;
+                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&0x70);
                 if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
                     interpreted(ptr->commandCode,ptr->parameter);
                 }
@@ -1378,12 +1378,12 @@ void enterFile(std::string fileName) {
     executor.ptr = &data;
     std::cout << "开始执行字节码..." << std::endl;
     // 启动读取和执行循环
-    executor.RS8BFLRead(BYSave);
+    executor.F8BFLRead(BYSave);
     std::cout << std::endl << "执行结束。" << std::endl;
 }
-//这代码太烂了...
+//这代码太烂了......
 int main() {
-    std::cout<<"当前版本仅支持8bitFixedLength协议";
+    std::cout<<"当前版本仅支持8bitFixedLength编码"<<std::endl;
     std::cout<<"请输入要进行的操作（注：1为读取要编译的文件，2为解释编译后的文件，3为解释说明语法）"<<std::endl;
     int deCin;
     std::cin>>deCin;
