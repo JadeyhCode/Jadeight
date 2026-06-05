@@ -1,5 +1,5 @@
 //没错，这本来是一个动画软件，后面我发现这个LLI虚拟机太NB了就单独提了出来
-//动画软件版本是0.03，结果回头一看虚拟机已经是1.10了
+//动画软件版本是0.03，结果回头一看虚拟机已经是1.11了
 #include <algorithm>
 #include <cmath>
 #include <fstream>
@@ -8,59 +8,29 @@
 #include <memory>
 #include <string>
 #include <vector>
+struct TrueEnd:public std::exception{};
 struct DataSave {
-    std::vector<size_t> GoToWhileStrat;
-    bool prepareEnd=0;
-    std::vector<bool> ifState;
-    //以上为虚拟机栈，事实证明，其非常多余
-    long long parameterStack;
-    //以下为运行
-    std::vector<bool> boolHeap;
-    std::vector<unsigned long long> FreeBoolHeap;
-    std::vector<double> doubleHeap;
-    std::vector<unsigned long long> FreeDoubleHeap;
-    std::vector<int> intHeap;
-    std::vector<unsigned long long> FreeIntHeap;
-    //以下是栈
-    std::vector<bool> boolStack;
-    std::vector<double> doubleStack;
-    std::vector<int> intStack;
+    uint32_t stackSize;
+    uint8_t* Stack;
+    uint32_t stackPtr;
     bool end = 0; //end=0是运行，end=1是停止
     //以下为读取
-    long long exponentialStorage;
-    uint8_t bitStack;
+    long long**ptrPtr=nullptr;
     long long commandCode = 0;
     long long parameter = 0/*顾名思义*/;
-    bool readState = true;
     unsigned long long count = 0; //刚刚从各个地方转移的
-    DataSave():parameterStack(0),end(false),exponentialStorage(0),prepareEnd(0),commandCode(0),parameter(0),readState(false),count(0),bitStack(0) {
+    DataSave():end(false),commandCode(0),parameter(0),count(0){
     }
-    DataSave(DataSave&&other) noexcept :GoToWhileStrat(other.GoToWhileStrat),prepareEnd(other.prepareEnd),ifState(other.ifState),parameterStack(other.parameterStack),boolHeap(other.boolHeap),intHeap(other.intHeap),FreeIntHeap(other.FreeIntHeap),count(other.count),FreeBoolHeap(other.FreeBoolHeap),doubleHeap(other.doubleHeap),FreeDoubleHeap(other.FreeDoubleHeap),boolStack(other.boolStack),doubleStack(other.doubleStack),intStack(other.intStack),end(other.end),exponentialStorage(other.exponentialStorage),commandCode(other.commandCode),parameter(other.parameter),readState(other.readState),bitStack(other.bitStack){
+    DataSave(DataSave&&other) noexcept :count(other.count),end(other.end),commandCode(other.commandCode),parameter(other.parameter){
     }
-    DataSave(const DataSave& other):GoToWhileStrat(other.GoToWhileStrat),prepareEnd(other.prepareEnd),ifState(other.ifState),parameterStack(other.parameterStack),boolHeap(other.boolHeap),intHeap(other.intHeap),FreeIntHeap(other.FreeIntHeap),count(other.count),FreeBoolHeap(other.FreeBoolHeap),doubleHeap(other.doubleHeap),FreeDoubleHeap(other.FreeDoubleHeap),boolStack(other.boolStack),doubleStack(other.doubleStack),intStack(other.intStack),end(other.end),exponentialStorage(other.exponentialStorage),commandCode(other.commandCode),parameter(other.parameter),readState(other.readState),bitStack(other.bitStack){
+    DataSave(const DataSave& other):count(other.count),end(other.end),commandCode(other.commandCode),parameter(other.parameter){
     }
     DataSave& operator=(DataSave&&other) noexcept {
         if (this!=&other) {
-            this->prepareEnd=other.prepareEnd;
-            this->GoToWhileStrat=other.GoToWhileStrat;
-            this->ifState=other.ifState;
-            this->parameterStack=other.parameterStack;
-            this->boolHeap=other.boolHeap;
-            this->FreeBoolHeap=other.FreeBoolHeap;
-            this->doubleHeap=other.doubleHeap;
-            this->FreeDoubleHeap=other.FreeDoubleHeap;
-            this->intHeap=other.intHeap;
-            this->FreeIntHeap=other.FreeIntHeap;
-            this->boolStack=other.boolStack;
-            this->doubleStack=other.doubleStack;
-            this->intStack=other.intStack;
             this->end=other.end;
-            this->exponentialStorage=other.exponentialStorage;
             this->commandCode=other.commandCode;
             this->parameter=other.parameter;
-            this->readState=other.readState;
             this->count=other.count;
-            this->bitStack=(other.bitStack);
         }
         return *this;
     }
@@ -68,25 +38,9 @@ struct DataSave {
         if (this!=&other) {
             DataSave temp(other);
             // 交换当前对象和临时副本的资源
-            std::swap(prepareEnd,temp.prepareEnd);
-            std::swap(GoToWhileStrat, temp.GoToWhileStrat);
-            std::swap(ifState, temp.ifState);
-            std::swap(parameterStack, temp.parameterStack);
-            std::swap(boolHeap, temp.boolHeap);
-            std::swap(FreeBoolHeap, temp.FreeBoolHeap);
-            std::swap(doubleHeap, temp.doubleHeap);
-            std::swap(FreeDoubleHeap, temp.FreeDoubleHeap);
-            std::swap(bitStack, temp.bitStack);
-            std::swap(boolStack, temp.boolStack);
-            std::swap(doubleStack, temp.doubleStack);
-            std::swap(intStack, temp.intStack);
             std::swap(end, temp.end);
-            std::swap(exponentialStorage, temp.exponentialStorage);
             std::swap(commandCode, temp.commandCode);
             std::swap(parameter, temp.parameter);
-            std::swap(readState, temp.readState);
-            std::swap(intHeap, temp.intHeap);
-            std::swap(FreeIntHeap,temp.FreeIntHeap);
             std::swap(count, temp.count);
         }else {
             std::cout<<"写一个输出，表示拷贝构造函数发生了意外的自赋值操作，检查一下代码TwT"<<std::endl;
@@ -196,857 +150,17 @@ std::map<std::string, long long> instructionMap = {
     {"copyFirstStack", 25},
     {"pushCount",26}
 };
-
-void add(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足7" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->intStack.push_back(a + b);
-            break;
-        }
-        case 1: {
-            //浮点数加法doubleAdd
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(a + b);
-            break;
-        }
-    }
+void Stackinitialization(long long parameter,DataSave ptr){
+    ptr.Stack=new uint8_t[parameter*1024];
 }
-
-void reduce(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数减法intJian
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足2" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->intStack.push_back(a - b);
-            break;
-        }
-        case 2: {
-            //浮点减法
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(a - b);
-            break;
-        }
-    }
-}
-
-void ride(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数乘法intCheng
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足3" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->intStack.push_back(a * b);
-            //最难受的就是反复复制粘贴
-            break;
-        }
-        case 2: {
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(a * b);
-            break;
-        }
-    }
-}
-
-void excluding(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数除法intChu
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足4" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (b == 0) {
-                std::cout << "错误：除零错误" << std::endl;
-                return;
-            }
-            ptr->intStack.push_back(a / b);
-            break;
-        }
-        case 1: {
-            //浮点数乘法intCheng
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(a / b);
-            break;
-        }
-    }
-}
-
-void modulo(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数取模intQvMo
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足5" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (b == 0) {
-                std::cout << "错误：除零错误" << std::endl;
-                //话说回来除0有必要吗
-                return;
-            }
-            ptr->intStack.push_back(a % b);
-            break;
-        }
-        case 1: {
-            //浮点数乘法intCheng
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(std::fmod(a, b));
-            break;
-        }
-    }
-}
-
-void boolOperation(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //逻辑与&
-            if (ptr->boolStack.size() < 2) {
-                std::cout << "错误：布尔栈元素不足" << std::endl;
-                return;
-            }
-            bool b = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            bool a = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            ptr->boolStack.push_back(a && b);
-            break;
-        }
-        case 1: {
-            if (ptr->boolStack.size() < 2) {
-                std::cout << "错误：布尔栈元素不足" << std::endl;
-                return;
-            }
-            bool b = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            bool a = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            ptr->boolStack.push_back(a || b);
-            break;
-        }
-        case 2: {
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔栈为空" << std::endl;
-                return;
-            }
-            bool a = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            ptr->boolStack.push_back(!a);
-            break;
-        }
-    }
-}
-
-void Equal(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数相等比较i=
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足6" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->boolStack.push_back(a == b);
-            break;
-        }
-        case 1: {
-            //浮点数相等比较d=
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->boolStack.push_back(a == b);
-            break;
-        }
-    }
-}
-
-void Greater(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数大于比较i>
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足7" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->boolStack.push_back(a > b);
-            break;
-        }
-        case 1: {
-            //浮点数大于比较d>
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->boolStack.push_back(a > b);
-            break;
-        }
-    }
-}
-
-void less(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数小于比较i<
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足8" << std::endl;
-                return;
-            }
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->boolStack.push_back(a < b);
-            break;
-        }
-        case 1: {
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->boolStack.push_back(a < b);
-            break;
-        }
-    }
-}
-
-void jump(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //无条件跳转NoJump
-            ptr->count = ptr->parameterStack; //跳转到指定位置
-            ptr->readState = true;
-            parameter = 0;
-            break; //思索这这东西似乎图灵完备了
-        }
-        case 1: {
-            //条件跳转（栈顶为真时跳转）dJump
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔栈为空" << std::endl;
-                return;
-            }
-            bool condition = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            if (condition) {
-                ptr->count = ptr->parameterStack;
-                ptr->readState = true;
-                parameter = 0;
-            }
-            break;
-        }
-        case 2: {
-            //条件跳转（栈顶为假时跳转）很像if啊Nif
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔栈为空" << std::endl;
-                return;
-            }
-            bool condition = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            if (!condition) {
-                ptr->count = ptr->parameterStack;
-                ptr->readState = true;
-                parameter = 0;
-            }
-            break;
-        }
-    }
-}
-
-void intPush(long long parameter, DataSave *ptr) {
-    //整数压栈intAddStack
-    ptr->intStack.push_back(static_cast<int>(ptr->parameter)); //第一次实战static_cast<>
-}
-
-void doublePush(long long parameter, DataSave *ptr) {
-    //浮点数压栈doubleAddStack
-    ptr->doubleStack.push_back(static_cast<double>(ptr->parameter));
-}
-
-void boolPush(long long parameter, DataSave *ptr) {
-    //布尔值压栈boolAddStack
-    ptr->boolStack.push_back(ptr->parameter != 0);
-}
-
-void JadeightEnd(long long parameter, DataSave *ptr) {
-    //程序结束JadeightEnd
-    ptr->end = true;
-    if (parameter == 403) {
-        std::cout << "程序正常退出，返回值：小绵羊生日！！" << std::endl;
-        return;
-    }
-    if (parameter == 508) {
-        std::cout << "程序正常退出，返回值：我的生日！！" << std::endl;
-        return;
-    }
-    std::cout << "程序正常退出，返回值：" << parameter << std::endl;
-}
-
-void paramStore(long long parameter, DataSave *ptr) {
-    //存储此次的parameter，下一次的执行指令码可以用，为堆打基础 parameterStack
-    //直觉告诉我，这个有用
-    ptr->parameterStack = parameter;
-}
-
-void heapAdd(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            if (!ptr->FreeIntHeap.empty()) {
-                unsigned long long freeIndex = ptr->FreeIntHeap.back();
-                ptr->FreeIntHeap.pop_back();
-                if (freeIndex < ptr->intHeap.size()) {
-                    ptr->intHeap[freeIndex] = 0;
-                    ptr->intStack.push_back(static_cast<int>(freeIndex));
-                } else {
-                    ptr->intHeap.push_back(0);
-                    unsigned long long newIndex = ptr->intHeap.size() - 1;
-                    ptr->intStack.push_back(static_cast<int>(newIndex));
-                }
-            } else {
-                ptr->intHeap.push_back(0);
-                unsigned long long newIndex = ptr->intHeap.size() - 1;
-                ptr->intStack.push_back(static_cast<int>(newIndex));
-            }
-            break;
-        }
-        case 1: {
-            if (!ptr->FreeDoubleHeap.empty()) {
-                unsigned long long freeIndex = ptr->FreeDoubleHeap.back();
-                ptr->FreeDoubleHeap.pop_back();
-                if (freeIndex < ptr->doubleHeap.size()) {
-                    ptr->doubleHeap[freeIndex] = 0;
-                    ptr->doubleStack.push_back(static_cast<double>(freeIndex));
-                } else {
-                    ptr->doubleHeap.push_back(0);
-                    unsigned long long newIndex = ptr->doubleHeap.size() - 1;
-                    ptr->doubleStack.push_back(static_cast<double>(newIndex));
-                }
-            } else {
-                ptr->doubleHeap.push_back(0);
-                unsigned long long newIndex = ptr->doubleHeap.size() - 1;
-                ptr->doubleStack.push_back(static_cast<double>(newIndex));
-            }
-            break;
-        }
-        case 2: {
-            //布尔堆分配boolHeapAdd
-            if (!ptr->FreeBoolHeap.empty()) {
-                unsigned long long freeIndex = ptr->FreeBoolHeap.back();
-                ptr->FreeBoolHeap.pop_back();
-                if (freeIndex < ptr->boolHeap.size()) {
-                    ptr->boolHeap[freeIndex] = 0;
-                    ptr->boolStack.push_back(static_cast<bool>(freeIndex));
-                } else {
-                    ptr->boolHeap.push_back(0);
-                    unsigned long long newIndex = ptr->boolHeap.size() - 1;
-                    ptr->boolStack.push_back(static_cast<bool>(newIndex));
-                }
-            } else {
-                ptr->boolHeap.push_back(0);
-                unsigned long long newIndex = ptr->boolHeap.size() - 1;
-                ptr->boolStack.push_back(static_cast<bool>(newIndex));
-            }
-            break;
-        }
-    }
-}
-
-void heapRead(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //从整数堆读取intHeapRead
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->intHeap.size()) {
-                std::cout << "错误：整数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->intStack.push_back(ptr->intHeap[index]);
-            break;
-        }
-        case 1: {
-            //从浮点数堆读取doubleHeapRead
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->doubleHeap.size()) {
-                std::cout << "错误：浮点数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->doubleStack.push_back(ptr->doubleHeap[index]);
-            break;
-        }
-        case 2: {
-            //从布尔堆读取boolHeapRead
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->boolHeap.size()) {
-                std::cout << "错误：布尔堆索引越界" << std::endl;
-                return;
-            }
-            ptr->boolStack.push_back(ptr->boolHeap[index]);
-            break;
-        }
-    }
-}
-
-void writeHeap(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //写入整数堆writeIntHeap
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足" << std::endl;
-                return;
-            }
-            int value = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->intHeap.size()) {
-                std::cout << "错误：整数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->intHeap[index] = value;
-            break;
-        }
-        case 1: {
-            //写入浮点数堆writeDoubleHeap
-            if (ptr->intStack.empty() || ptr->doubleStack.empty()) {
-                std::cout << "错误：栈元素不足" << std::endl;
-                return;
-            }
-            double value = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->doubleHeap.size()) {
-                std::cout << "错误：浮点数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->doubleHeap[index] = value;
-            break;
-        }
-        case 2: {
-            //写入布尔堆writeBoolHeap
-            if (ptr->intStack.empty() || ptr->boolStack.empty()) {
-                std::cout << "错误：栈元素不足" << std::endl;
-                return;
-            }
-            bool value = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->boolHeap.size()) {
-                std::cout << "错误：布尔堆索引越界" << std::endl;
-                return;
-            }
-            ptr->boolHeap[index] = value;
-            break;
-        }
-    }
-}
-
-void freeHeap(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数堆释放freeIntHeap
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->intHeap.size()) {
-                std::cout << "错误：整数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->FreeIntHeap.push_back(static_cast<unsigned long long>(index)); //标记为空闲
-            break;
-        }
-        case 1: {
-            //浮点数堆释放freeDoubleHeap
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->doubleHeap.size()) {
-                std::cout << "错误：浮点数堆索引越界" << std::endl;
-                return;
-            }
-            ptr->FreeDoubleHeap.push_back(static_cast<unsigned long long>(index));
-            break;
-        }
-        case 2: {
-            //布尔堆释放freeBoolHeap
-            //std::cout<<"请输入文件名";
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int index = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            if (index < 0 || static_cast<size_t>(index) >= ptr->boolHeap.size()) {
-                std::cout << "错误：布尔堆索引越界" << std::endl;
-                return;
-            }
-            ptr->FreeBoolHeap.push_back(static_cast<unsigned long long>(index));
-            break;
-        }
-    }
-}
-
-void stackSwap(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数栈顶交换IntStackSwap
-            if (ptr->intStack.size() < 2) {
-                std::cout << "错误：整数栈元素不足" << std::endl;
-                return;
-            }
-            int a = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            int b = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->intStack.push_back(a);
-            ptr->intStack.push_back(b);
-            break;
-        }
-        case 1: {
-            //浮点数栈顶交换doubleStackSwap
-            if (ptr->doubleStack.size() < 2) {
-                std::cout << "错误：浮点数栈元素不足" << std::endl;
-                return;
-            }
-            double a = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            double b = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->doubleStack.push_back(a);
-            ptr->doubleStack.push_back(b);
-            break;
-        }
-        case 2: {
-            //布尔栈顶交换boolStackSwap
-            if (ptr->boolStack.size() < 2) {
-                std::cout << "错误：布尔栈元素不足" << std::endl;
-                return;
-            }
-            bool a = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            bool b = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            ptr->boolStack.push_back(a);
-            ptr->boolStack.push_back(b);
-            break;
-        }
-    }
-}
-
-void stackSize(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //获取整数栈大小intStackSize
-            ptr->intStack.push_back(static_cast<int>(ptr->intStack.size()));
-            //获取了以后不是更大了吗？
-            break;
-        }
-        case 1: {
-            //获取浮点数栈大小doubleStackSize
-            ptr->intStack.push_back(static_cast<int>(ptr->doubleStack.size()));
-            break;
-        }
-        case 2: {
-            //获取布尔栈大小boolStackSize
-            ptr->intStack.push_back(static_cast<int>(ptr->boolStack.size()));
-            //获取了以后不是更大了吗？
-            break;
-        }
-    }
-}
-
-void cout(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //打印整数coutInt
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int value = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            std::cout << value;
-            break;
-        }
-        case 1: {
-            //打印字符coutDouble
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int value = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            std::cout << static_cast<char>(value);
-            break;
-        }
-        case 2: {
-            //打印字符串（从整数堆读取）coutString
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int startIndex = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            for (size_t i = startIndex; i < ptr->intHeap.size() && ptr->intHeap[i] != 0; ++i) {
-                std::cout << static_cast<char>(ptr->intHeap[i]);
-            }
-            break;
-        }
-    }
-}
-
-void readCin(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //读取整数输入readIntCin
-            int value;
-            std::cin >> value;
-            ptr->intStack.push_back(value);
-            break;
-        }
-        case 1: {
-            //读取单字符输入readStringCin
-            char value;
-            std::cin >> value;
-            ptr->intStack.push_back(static_cast<int>(value));
-            break;
-            //你说说，它可以干什么呢...
-        }
-    }
-}
-
-void swapType(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数转浮点数intDoubleSwap
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int value = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->doubleStack.push_back(static_cast<double>(value));
-            break;
-        }
-        case 1: {
-            //浮点数转整数doubleIntSwap
-            if (ptr->doubleStack.empty()) {
-                std::cout << "错误：浮点数栈为空" << std::endl;
-                return;
-            }
-            double value = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->intStack.push_back(static_cast<int>(value));
-            break;
-        }
-        case 2: {
-            //整数转布尔intSwapBool
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            int value = ptr->intStack.back();
-            ptr->intStack.pop_back();
-            ptr->boolStack.push_back(value != 0);
-            break;
-        }
-        case 3: {
-            //布尔转整数boolSwapInt
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔栈为空" << std::endl;
-                return;
-            }
-            bool value = ptr->boolStack.back();
-            ptr->boolStack.pop_back();
-            ptr->intStack.push_back(value ? 1 : 0);
-            break;
-        }
-        case 4: {
-            //浮点数转布尔doubleSwapbool
-            if (ptr->doubleStack.empty()) {
-                std::cout << "错误：浮点数栈为空" << std::endl;
-                return;
-            }
-            double value = ptr->doubleStack.back();
-            ptr->doubleStack.pop_back();
-            ptr->boolStack.push_back(std::fabs(value) > 1e-10);
-            break;
-        }
-    }
-}
-
-void popStack(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数弹栈intJumpStack
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            ptr->intStack.pop_back();
-            break;
-        }
-        case 1: {
-            //浮点数弹栈doubleJumpStack
-            if (ptr->doubleStack.empty()) {
-                std::cout << "错误：浮点数栈为空" << std::endl;
-                return;
-            }
-            ptr->doubleStack.pop_back();
-            break;
-        }
-        case 2: {
-            //布尔值弹栈boolJumpStack
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔栈为空" << std::endl;
-                return;
-            }
-            ptr->boolStack.pop_back();
-            break;
-        }
-    }
-}
-
-void copyFirstStack(long long parameter, DataSave *ptr) {
-    switch (parameter) {
-        case 0: {
-            //整数复制栈顶intFuZhiStack
-            if (ptr->intStack.empty()) {
-                std::cout << "错误：整数栈为空" << std::endl;
-                return;
-            }
-            ptr->intStack.push_back(ptr->intStack.back());
-            break;
-        }
-        case 1: {
-            //浮点数复制栈顶doubleFuZhiStack
-            if (ptr->doubleStack.empty()) {
-                std::cout << "错误：浮点数栈为空" << std::endl;
-                return;
-            }
-            ptr->doubleStack.push_back(ptr->doubleStack.back());
-            break;
-        }
-        case 2: {
-            if (ptr->boolStack.empty()) {
-                std::cout << "错误：布尔数栈为空" << std::endl;
-            }
-            ptr->boolStack.push_back(ptr->boolStack.back());
-            break;
-        }
-    }
-}
-void pushCount(long long parameter, DataSave *ptr){ptr->intStack.push_back(static_cast<int>(ptr->count+1));}
-void (*interpretedPTR[27])(long long,DataSave*){add,reduce,excluding,modulo,boolOperation,Equal,Greater,less,jump,intPush,doublePush,boolPush,JadeightEnd,paramStore,heapAdd,heapRead,writeHeap,freeHeap,stackSwap,stackSize,cout,readCin,swapType,popStack,copyFirstStack,pushCount};
+void (*interpretedPTR[26])(long long,DataSave*){};
 struct executoring {
     //数据存储
     DataSave *ptr;
     /*大脑.exe未响应*/
     //搞个指令解析？
     void interpreted(long long commandCode, long long parameter) {
+        std::cout << "当前指令" <<commandCode<< "当前参数" <<parameter<< std::endl;
         interpretedPTR[commandCode](parameter,ptr);
     }
     //全名称：Fast8BitFixedLengthRead
@@ -1054,24 +168,68 @@ struct executoring {
     //Fast path: direct hardware-style fetch loop
     //goto是故意的，如果接受不了去RS版本
     void F8BFLRead(const save &BYSave) {
+        try {
         start:
         ptr->commandCode=BYSave.byteCode[ptr->count];
         ptr->parameter=BYSave.byteCode[ptr->count+1];
         interpreted(ptr->commandCode,ptr->parameter);
-        ptr->count+=2;if (!ptr->end) {goto start;}
+        ptr->count+=2;goto start;
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
     }
     void RS8BFLRead(const save &BYSave) {
-        if(ptr != nullptr&&(!((BYSave.size)&1))) {
+        try {
+            if(ptr != nullptr&&(!((BYSave.size)&1))) {
+                while(!ptr->end&&ptr->count+1<BYSave.size){
+                     ptr->commandCode=BYSave.byteCode[ptr->count];
+                    ptr->parameter=BYSave.byteCode[ptr->count+1];
+                    interpreted(ptr->commandCode,ptr->parameter);
+                    ptr->count+=2;
+                }
+                if (!ptr->end&&ptr->count+2==BYSave.size) {
+                    ptr->commandCode=BYSave.byteCode[ptr->count];
+                    ptr->parameter=BYSave.byteCode[ptr->count+1];
+                    interpreted(ptr->commandCode,ptr->parameter);
+                }
+            }
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
+    }
+    //全名称：Fast3ByteFixedLengthRead
+    //注意...你确认要调用这个只适合逻辑模块但是最快，最通用的函数吗？
+    //Fast path: direct hardware-style fetch loop
+    //goto是故意的，如果接受不了去RS版本
+    void F3BFLRead(const save &BYSave) {
+        try {
             start:
             ptr->commandCode=BYSave.byteCode[ptr->count];
-            ptr->parameter=BYSave.byteCode[ptr->count+1];
+            ptr->parameter=(BYSave.byteCode[ptr->count+1]<<8)+BYSave.byteCode[ptr->count+2];
             interpreted(ptr->commandCode,ptr->parameter);
-            ptr->count+=2;if (!ptr->end&&ptr->count+1<BYSave.size) {goto start;}
-            if (!ptr->end&&ptr->count+2==BYSave.size) {
-                ptr->commandCode=BYSave.byteCode[ptr->count];
-                ptr->parameter=BYSave.byteCode[ptr->count+1];
-                interpreted(ptr->commandCode,ptr->parameter);
+            ptr->count+=3;goto start;
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
+    }
+    void RS3BFLRead(const save &BYSave) {
+        try {
+            if(ptr != nullptr&&(((BYSave.size)%3)==0)) {
+                while ((!ptr->end&&ptr->count+2<BYSave.size))
+                {
+                    ptr->commandCode=BYSave.byteCode[ptr->count];
+                    ptr->parameter=(BYSave.byteCode[ptr->count+1]<<8)+BYSave.byteCode[ptr->count+2];
+                    interpreted(ptr->commandCode,ptr->parameter);
+                    ptr->count+=3;
+                }
+                if (!ptr->end&&ptr->count+2==BYSave.size) {
+                    ptr->commandCode=BYSave.byteCode[ptr->count];
+                    ptr->parameter=(BYSave.byteCode[ptr->count+1]<<8)+BYSave.byteCode[ptr->count+2];
+                    interpreted(ptr->commandCode,ptr->parameter);
+                }
             }
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
         }
     }
     //全名称：Fast4BitVariableLengthRead
@@ -1079,39 +237,44 @@ struct executoring {
     //Fast path: direct hardware-style fetch loop
     //goto是故意的，如果接受不了去RS版本
     void F8BVLRead(const save &BYSave) {
-        long long* commandCodePTR=&ptr->commandCode;
-        long long* parameterPTR=&ptr->parameter;
-        long long* endPtr;
-        long long* nextEndPtr;
-        endPtr=(BYSave.byteCode[0]&0b10000000?commandCodePTR:parameterPTR);
-        *endPtr=(BYSave.byteCode[0]<<1)>>1;
-        nextEndPtr=(BYSave.byteCode[1]&0b10000000?commandCodePTR:parameterPTR);
-        ptr->count=1;
-        start:
-        endPtr=nextEndPtr;
-        *endPtr=(*endPtr*128)+((BYSave.byteCode[ptr->count]<<1)>>1);
-        nextEndPtr=(BYSave.byteCode[ptr->count+1]&0b10000000?commandCodePTR:parameterPTR);
-        if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
-            interpreted(ptr->commandCode,ptr->parameter);
-            ptr->commandCode=0;ptr->parameter=0;
-        }
-        ptr->count++;if (!ptr->end) {goto start;}
-    }
-    void RS8BVLRead(const save &BYSave) {
-        if (ptr != nullptr) {
+        try {
             long long* commandCodePTR=&ptr->commandCode;
             long long* parameterPTR=&ptr->parameter;
+            long long*PTRList[2]{&ptr->parameter,&ptr->commandCode};
             long long* endPtr;
             long long* nextEndPtr;
-            endPtr=(BYSave.byteCode[0]&0b10000000?commandCodePTR:parameterPTR);
+            endPtr=(PTRList[BYSave.byteCode[0]>>7]);
             *endPtr=(BYSave.byteCode[0]<<1)>>1;
-            nextEndPtr=(BYSave.byteCode[1]&0b10000000?commandCodePTR:parameterPTR);
+            nextEndPtr=(PTRList[BYSave.byteCode[1]>>7]);
+            ptr->count=1;
+            start:
+            endPtr=nextEndPtr;
+            *endPtr=(*endPtr*128)+((BYSave.byteCode[ptr->count]<<1)>>1);
+            nextEndPtr=(PTRList[BYSave.byteCode[ptr->count+1]>>7]);
+            if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
+                interpreted(ptr->commandCode,ptr->parameter);
+                ptr->commandCode=0;ptr->parameter=0;
+            }
+            ptr->count++;goto start;
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
+    }
+    void RS8BVLRead(const save &BYSave) {
+        try {
+        if (ptr != nullptr) {
+            long long*PTRList[2]{&ptr->parameter,&ptr->commandCode};
+            long long* endPtr;
+            long long* nextEndPtr;
+            endPtr=(PTRList[BYSave.byteCode[0]>>7]);
+            *endPtr=(BYSave.byteCode[0]<<1)>>1;
+            nextEndPtr=(PTRList[BYSave.byteCode[1]>>7]);
             ptr->count=1;
             while (!ptr->end&&ptr->count+1<BYSave.size) {
             endPtr=nextEndPtr;
             *endPtr=(*endPtr*128)+((BYSave.byteCode[ptr->count]<<1)>>1);
-            nextEndPtr=(BYSave.byteCode[ptr->count+1]&0b10000000?commandCodePTR:parameterPTR);
-            if(endPtr!=commandCodePTR&&endPtr!=nextEndPtr){
+            nextEndPtr=(PTRList[BYSave.byteCode[ptr->count+1]>>7]);
+            if(endPtr!=PTRList[1]&&endPtr!=nextEndPtr){
                 interpreted(ptr->commandCode,ptr->parameter);
                 ptr->commandCode=0;ptr->parameter=0;
             }
@@ -1122,34 +285,41 @@ struct executoring {
                 interpreted(ptr->commandCode,ptr->parameter);
             }
         }
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
     }
     //全名称：Fast4BitVariableLengthRead
     //注意，危险函数谨慎调用
     //Fast path: direct hardware-style fetch loop
     //goto是故意的，如果接受不了去RS版本
     void F4BVLRead(const save &BYSave) {
-        long long* commandCodePTR=&ptr->commandCode;
-        long long* parameterPTR=&ptr->parameter;
+        try {
+        long long*PTRList[2]{&ptr->parameter,&ptr->commandCode};
         long long* endPtr;
         long long* nextEndPtr;
         unsigned long long reading;
-        endPtr=(BYSave.byteCode[0]&0x80?commandCodePTR:parameterPTR);
+        endPtr=(PTRList[(BYSave.byteCode[0]&0x80)!=0]);
         *endPtr=BYSave.byteCode[0]&0x70;
-        nextEndPtr=(BYSave.byteCode[0]&0x08?commandCodePTR:parameterPTR);
+        nextEndPtr=(PTRList[(BYSave.byteCode[0]&0x08)!=0]);
         ptr->count=1;
         start:
         endPtr=nextEndPtr;
-        *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)&1))<<2)+3)));
-        nextEndPtr=(BYSave.byteCode[(ptr->count+1)/2]&(1<<(((!((ptr->count+1)&1))<<2)+3))?commandCodePTR:parameterPTR);
-        if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
+        *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count>>1]&(0b00000111<<(((!((ptr->count)&1))<<2))));
+        nextEndPtr=(PTRList[(BYSave.byteCode[(ptr->count+1)>>1]&(1<<(((!((ptr->count+1)&1))<<2)+3)))!=0]);
+        if(endPtr!=PTRList[1]&&(endPtr!=nextEndPtr)){
             interpreted(ptr->commandCode,ptr->parameter);
             ptr->commandCode=0;ptr->parameter=0;
         }
         ptr->count++;if (!ptr->end) {goto start;}
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
+        }
     }
     //全名称：ReasonablySafe4BitVariableLengthRead
     //注意，相对安全函数谨慎传参
     void RS4BVLRead(const save &BYSave) {
+        try {
         if(ptr != nullptr) {
             long long* commandCodePTR=&ptr->commandCode;
             long long* parameterPTR=&ptr->parameter;
@@ -1161,8 +331,8 @@ struct executoring {
             ptr->count=1;
             while (!ptr->end&&ptr->count+1<BYSave.size*2) {
                 endPtr=nextEndPtr;
-                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&(0x07<<(((!((ptr->count)%2))<<2)+3)));
-                nextEndPtr=(BYSave.byteCode[(ptr->count+1)/2]&(1<<(((!((ptr->count+1)%2))<<2)+3))?commandCodePTR:parameterPTR);
+                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count>>1]&(0b00000111<<(((!((ptr->count)&1))<<2))));
+                nextEndPtr=(BYSave.byteCode[(ptr->count+1)>>1]&(1<<(((!((ptr->count+1)%2))<<2)+3))?commandCodePTR:parameterPTR);
                 if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
                     interpreted(ptr->commandCode,ptr->parameter);
                     ptr->commandCode=0;
@@ -1172,11 +342,14 @@ struct executoring {
             }
             if (!ptr->end&&ptr->count+1==BYSave.size*2) {
                 endPtr=nextEndPtr;
-                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count/2]&0x70);
+                *endPtr=(*endPtr*8)+(BYSave.byteCode[ptr->count>>1]&0x70);
                 if(endPtr!=commandCodePTR&&(endPtr!=nextEndPtr)){
                     interpreted(ptr->commandCode,ptr->parameter);
                 }
             }
+        }
+        }catch (const std::exception& end) {
+            std::cout<<"程序退出"<<std::endl;
         }
     }
         //原版读取逻辑
@@ -1378,7 +551,7 @@ void enterFile(std::string fileName) {
     executor.ptr = &data;
     std::cout << "开始执行字节码..." << std::endl;
     // 启动读取和执行循环
-    executor.F8BFLRead(BYSave);
+    executor.RS8BFLRead(BYSave);
     std::cout << std::endl << "执行结束。" << std::endl;
 }
 //这代码太烂了......
